@@ -1,0 +1,46 @@
+{
+  "name": "Scout: send new channel uploads to Clip Studio",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 6}]}},
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=PASTE_CHANNEL_ID_HERE", "options": {}},
+      "name": "Read channel feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {"maxItems": 2},
+      "name": "Newest 2 videos",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://clipper:8000/api/jobs",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.link }}\",\n  \"campaign\": \"PASTE CAMPAIGN NAME\",\n  \"clips\": 5,\n  \"watermark\": \"\",\n  \"tag\": \"\"\n}",
+        "options": {"response": {"response": {"neverError": true}}}
+      },
+      "name": "Send to Clip Studio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Every 6 hours": {"main": [[{"node": "Read channel feed", "type": "main", "index": 0}]]},
+    "Read channel feed": {"main": [[{"node": "Newest 2 videos", "type": "main", "index": 0}]]},
+    "Newest 2 videos": {"main": [[{"node": "Send to Clip Studio", "type": "main", "index": 0}]]}
+  },
+  "settings": {}
+}

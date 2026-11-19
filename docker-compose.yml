@@ -1,0 +1,38 @@
+services:
+  caddy:            # HTTPS front door for both apps
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [n8n, clipper]
+
+  n8n:              # automation dashboard: schedules, scouting, notifications
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=${N8N_DOMAIN}
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${N8N_DOMAIN}/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${TIMEZONE:-America/New_York}
+      - N8N_RUNNERS_ENABLED=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  clipper:          # Clip Studio: transcribe, pick moments, cut, review
+    build: ./clipper
+    restart: unless-stopped
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-5-5}
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - DEFAULT_CLIPS=${DEFAULT_CLIPS:-5}
+      - KEEP_SOURCE=${KEEP_SOURCE:-false}
+    volumes:
+      - ./data:/data
+
+volumes:
+  caddy_data:
+  n8n_data:
