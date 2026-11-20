@@ -24,12 +24,7 @@ services:
   clipper:          # Clip Studio: transcribe, pick moments, cut, review
     build: ./clipper
     restart: unless-stopped
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-5-5}
-      - WHISPER_MODEL=${WHISPER_MODEL:-base}
-      - DEFAULT_CLIPS=${DEFAULT_CLIPS:-5}
-      - KEEP_SOURCE=${KEEP_SOURCE:-false}
+    env_file: .env          # AI keys and settings
     volumes:
       - ./data:/data
 

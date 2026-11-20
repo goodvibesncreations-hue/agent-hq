@@ -32,7 +32,12 @@ if [ ! -f .env ]; then
   say "A few questions (only asked once)"
   IP=$(curl -fsS http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address 2>/dev/null || curl -fsS https://api.ipify.org)
   DASHED=${IP//./-}
-  read -rp "Paste your Anthropic API key (starts with sk-ant-), or press Enter to skip for now: " AKEY < /dev/tty
+  echo "AI keys: paste any you have, press Enter to skip the rest. One is enough."
+  echo "(Free options: Gemini from aistudio.google.com, Groq from console.groq.com)"
+  read -rp "  Gemini key (free):          " GKEY < /dev/tty
+  read -rp "  Groq key (free):            " QKEY < /dev/tty
+  read -rp "  Anthropic/Claude key (paid): " AKEY < /dev/tty
+  read -rp "  OpenAI key (paid):          " OKEY < /dev/tty
   while true; do
     read -rsp "Choose a password for Clip Studio (8+ characters): " PW < /dev/tty; echo
     [ ${#PW} -ge 8 ] && break
@@ -40,6 +45,10 @@ if [ ! -f .env ]; then
   done
   cat > .env <<EOF
 ANTHROPIC_API_KEY=${AKEY}
+GEMINI_API_KEY=${GKEY}
+GROQ_API_KEY=${QKEY}
+OPENAI_API_KEY=${OKEY}
+AI_ORDER=anthropic,openai,gemini,groq
 N8N_DOMAIN=n8n.${DASHED}.sslip.io
 CLIPS_DOMAIN=clips.${DASHED}.sslip.io
 N8N_ENCRYPTION_KEY=$(openssl rand -hex 24)

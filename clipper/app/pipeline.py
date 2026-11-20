@@ -13,7 +13,6 @@ from pathlib import Path
 
 DATA = Path(os.environ.get("DATA_DIR", "/data"))
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")
 MIN_LEN = int(os.environ.get("CLIP_MIN_SECONDS", "15"))
 MAX_LEN = int(os.environ.get("CLIP_MAX_SECONDS", "60"))
 FONT = os.environ.get("CAPTION_FONT", "DejaVu Sans")
@@ -113,18 +112,21 @@ TRANSCRIPT:
 {transcript}"""
 
 
-def pick_moments(transcript: list[dict], n: int, title: str = "", rules: str = "") -> list[dict]:
+def pick_moments(transcript: list[dict], n: int, title: str = "", rules: str = "") -> tuple[list[dict], str]:
+    """Returns (clips, who picked them)."""
     if not transcript:
         raise RuntimeError("No speech was found in this video, so there is nothing to clip.")
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        clips = _pick_with_claude(transcript, n, title, rules)
+    from . import ai
+
+    if ai.configured():
+        clips, who = _pick_with_ai(transcript, n, title, rules)
     else:
-        clips = _pick_fallback(transcript, n)
-    return _clean_clips(clips, transcript, n)
+        clips, who = _pick_fallback(transcript, n), "basic pick (no AI key set)"
+    return _clean_clips(clips, transcript, n), who
 
 
-def _pick_with_claude(transcript, n, title, rules):
-    import anthropic
+def _pick_with_ai(transcript, n, title, rules):
+    from . import ai
 
     lines = "\n".join(f"[{s['start']:.1f}-{s['end']:.1f}] {s['text']}" for s in transcript)
     prompt = PICK_PROMPT.format(
@@ -132,14 +134,11 @@ def _pick_with_claude(transcript, n, title, rules):
         title_part=f' titled "{title}"' if title else "",
         rules_part=f"- Campaign rules to respect: {rules}\n" if rules else "",
     )
-    client = anthropic.Anthropic()
-    msg = client.messages.create(model=CLAUDE_MODEL, max_tokens=4000,
-                                 messages=[{"role": "user", "content": prompt}])
-    text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+    text, who = ai.ask(prompt)
     match = re.search(r"\{.*\}", text, re.S)
     if not match:
-        raise RuntimeError("The AI editor did not return a list of clips. Try the job again.")
-    return json.loads(match.group(0)).get("clips", [])
+        raise RuntimeError(f"The AI editor ({who}) did not return a list of clips. Try the job again.")
+    return json.loads(match.group(0)).get("clips", []), who
 
 
 def _pick_fallback(transcript, n):

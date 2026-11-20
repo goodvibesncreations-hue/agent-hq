@@ -61,7 +61,7 @@ def run_job(job):
 
     store.update_job(job_id, step="Picking the best moments")
     n = int(settings.get("clips") or DEFAULT_CLIPS)
-    picks = pipeline.pick_moments(transcript, n, title, settings.get("rules", ""))
+    picks, who = pipeline.pick_moments(transcript, n, title, settings.get("rules", ""))
     if not picks:
         raise RuntimeError("No good moments were found in this video.")
 
@@ -77,7 +77,7 @@ def run_job(job):
 
     if not KEEP_SOURCE:
         video.unlink(missing_ok=True)
-    store.update_job(job_id, status="done", step=f"Done: {len(picks)} clips ready to review")
+    store.update_job(job_id, status="done", step=f"Done: {len(picks)} clips ready to review (picked by {who})")
 
 
 def worker():
