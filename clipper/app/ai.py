@@ -12,8 +12,16 @@ If a default model name has been retired, the server asks the provider for its c
 and picks a suitable one automatically.
 """
 import os
+import re
 
 import httpx
+
+
+def _key(env: str) -> str:
+    """Read a key, dropping invisible characters a terminal paste can add."""
+    raw = os.environ.get(env, "")
+    raw = re.sub(r"(\x1b)?\[20[01]~", "", raw)
+    return re.sub(r"[^\x21-\x7e]", "", raw).strip("'\"")
 
 # name: (base url, key env, model env, default model, words to look for when auto-picking a model)
 OPENAI_STYLE = {
@@ -31,7 +39,7 @@ _discovered: dict[str, str] = {}
 def configured() -> list[str]:
     order = [p.strip() for p in os.environ.get("AI_ORDER", "anthropic,openai,gemini,groq").split(",") if p.strip()]
     keys = {"anthropic": "ANTHROPIC_API_KEY", **{k: v[1] for k, v in OPENAI_STYLE.items()}}
-    return [p for p in order if p in keys and os.environ.get(keys[p], "").strip()]
+    return [p for p in order if p in keys and _key(keys[p])]
 
 
 def ask(prompt: str) -> tuple[str, str]:
@@ -51,6 +59,7 @@ def ask(prompt: str) -> tuple[str, str]:
 def _anthropic(prompt: str) -> str:
     import anthropic
 
+    os.environ["ANTHROPIC_API_KEY"] = _key("ANTHROPIC_API_KEY")
     model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")
     msg = anthropic.Anthropic().messages.create(model=model, max_tokens=4000,
                                                 messages=[{"role": "user", "content": prompt}])
@@ -59,7 +68,7 @@ def _anthropic(prompt: str) -> str:
 
 def _openai_style(name: str, prompt: str) -> str:
     base, key_env, model_env, default, prefer = OPENAI_STYLE[name]
-    key = os.environ[key_env].strip()
+    key = _key(key_env)
     model = os.environ.get(model_env) or _discovered.get(name) or default
     r = _chat(base, key, model, prompt)
     if r.status_code in (400, 404) and "model" in r.text.lower() and not os.environ.get(model_env):
@@ -97,7 +106,7 @@ def test_all() -> list[dict]:
     keys = {"anthropic": "ANTHROPIC_API_KEY", **{k: v[1] for k, v in OPENAI_STYLE.items()}}
     out = []
     for p, env in keys.items():
-        if not os.environ.get(env, "").strip():
+        if not _key(env):
             out.append({"provider": NAMES[p], "status": "not set", "detail": ""})
             continue
         try:
