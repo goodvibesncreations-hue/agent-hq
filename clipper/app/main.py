@@ -167,7 +167,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px;borde
 def page(title, body, active="", refresh=False):
     c = store.counts()
     links = [("/", "Add video", "add"), ("/review", f"Review ({c.get('pending', 0)})", "review"),
-             ("/approved", f"Approved ({c.get('approved', 0)})", "approved")]
+             ("/approved", f"Approved ({c.get('approved', 0)})", "approved"), ("/keys", "Test AI keys", "keys")]
     nav = "".join(f'<a href="{h}" class="{"on" if k == active else ""}">{t}</a>' for h, t, k in links)
     meta = '<meta http-equiv="refresh" content="15">' if refresh else ""
     return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
@@ -272,6 +272,30 @@ def clip_action(clip_id: int, action: str, request: Request):
     api_clip_action(clip_id, action)
     back = request.headers.get("referer") or "/review"
     return RedirectResponse(back, status_code=303)
+
+
+@app.get("/api/test-keys")
+def api_test_keys():
+    from . import ai
+    return ai.test_all()
+
+
+@app.get("/keys", response_class=HTMLResponse)
+def keys_page():
+    from . import ai
+    results = ai.test_all()
+    icon = {"working": "<span class=done>✓ Working</span>", "error": "<span class=failed>✗ Problem</span>",
+            "not set": "<span class=muted>Not set</span>"}
+    rows = "".join(f"<tr><td><b>{e(r['provider'])}</b></td><td>{icon[r['status']]}</td><td class=muted>{e(r['detail'])}</td></tr>"
+                   for r in results)
+    ok = any(r["status"] == "working" for r in results)
+    note = ("<p class=done>You're set: the AI editor will use the working key(s), in order, with automatic backup.</p>" if ok
+            else "<p class=failed>No working AI key yet. Clips will still be made with the basic pick. "
+                 "Add a key in the server console with: <code>bash /opt/agent-hq/set-key.sh</code></p>")
+    body = f"""<section class="panel"><h1>AI key check</h1><p class="muted">Each key just sent a tiny test message.</p>
+<table><tr><th>Provider</th><th>Status</th><th>Details</th></tr>{rows}</table>{note}
+<p><a class="btn" href="/keys">Test again</a></p></section>"""
+    return page("AI keys", body, "keys")
 
 
 @app.get("/health")

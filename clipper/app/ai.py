@@ -90,3 +90,25 @@ def _discover(base, key, prefer) -> str:
     if stable:
         return stable[0]
     raise RuntimeError("Could not find a usable model for this key.")
+
+
+def test_all() -> list[dict]:
+    """Check every provider: not set, working (with the model used), or the error it gave."""
+    keys = {"anthropic": "ANTHROPIC_API_KEY", **{k: v[1] for k, v in OPENAI_STYLE.items()}}
+    out = []
+    for p, env in keys.items():
+        if not os.environ.get(env, "").strip():
+            out.append({"provider": NAMES[p], "status": "not set", "detail": ""})
+            continue
+        try:
+            text = _anthropic("Reply with the word OK.") if p == "anthropic" else _openai_style(p, "Reply with the word OK.")
+            model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5") if p == "anthropic" else (
+                os.environ.get(OPENAI_STYLE[p][2]) or _discovered.get(p) or OPENAI_STYLE[p][3])
+            out.append({"provider": NAMES[p], "status": "working", "detail": f"model {model}, replied: {text.strip()[:30]}"})
+        except Exception as e:
+            msg = str(e)
+            hint = ("The key looks wrong. Copy it again from the provider's site." if any(c in msg for c in ("401", "403", "invalid", "API key"))
+                    else "Out of free quota or credit for now." if "429" in msg or "quota" in msg.lower() or "credit" in msg.lower()
+                    else "")
+            out.append({"provider": NAMES[p], "status": "error", "detail": f"{hint} {msg[:160]}".strip()})
+    return out
